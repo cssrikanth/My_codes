@@ -14,7 +14,8 @@ program main
   PetscInt  i,ibeg,nloc,nx
   PetscInt sw,ndof,il,nl
   PetscMPIInt rank,size
-  PetscReal dx,x,v
+  PetscReal dx,x
+  PetscScalar v
   PetscScalar, pointer :: u(:),unew(:)
   MPI_Comm comm
   real :: cfl,xmin,xmax
@@ -28,6 +29,8 @@ program main
   xmax = +1.0
   nx = 10
   ark = [0.0d0, 3.0d0/4.0d0, 1.0d0/3.0d0]
+  sw = 3.0
+  ndof = 1.0
 
   call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
   if (ierr .ne. 0) then
@@ -57,7 +60,7 @@ program main
   do i=ibeg,ibeg+nloc-1
     x = xmin + i*dx
     v = initcond(x)
-    call VecSetValues(ug,1,i,v,INSERT_VALUES,ierr)
+    call VecSetValues(ug,ndof,i,v,INSERT_VALUES,ierr)
   end do
 
   call VecAssemblyBegin(ug,ierr)
