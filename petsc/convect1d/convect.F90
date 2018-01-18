@@ -27,7 +27,7 @@ program main
   
   xmin = -1.0
   xmax = +1.0
-  nx = 10
+  nx = 200
   ark = [0.0d0, 3.0d0/4.0d0, 1.0d0/3.0d0]
   sw = 3.0
   ndof = 1.0
@@ -48,14 +48,14 @@ program main
 
   call DMSetFromOptions(da,ierr)
  
-  call DMSetup(da,ierr) 
+ ! call DMSetup(da,ierr) 
 
   call DMCreateGlobalVector(da,ug,ierr)  
 
   call DMDAGetCorners(da,ibeg,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
   & nloc,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,ierr)
 
-  dx = (xmin - xmax) / (nx)
+  dx = (xmax - xmin) / (nx)
 
   do i=ibeg,ibeg+nloc-1
     x = xmin + i*dx
@@ -68,77 +68,78 @@ program main
 
   call DMGetLocalVector(da,ul,ierr)
 
-!  call DMDAGetGhostCorners(da,il,PETSC_NULL_INTEGER,&
-!  &PETSC_NULL_INTEGER,nl,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,ierr)
+  call DMDAGetGhostCorners(da,il,PETSC_NULL_INTEGER,&
+  &PETSC_NULL_INTEGER,nl,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,ierr)
 
-!  allocate (res(nloc))
-!  allocate (uold(nloc))  
+  allocate (res(nloc))
+  allocate (uold(nloc))  
 
-!  dt = cfl * dx
-!  lam = dt/dx
-!  tfinal = 2.0
-!  t = 0.0
-!  do while(t < tfinal)
+  cfl = 0.4
+  dt = cfl * dx
+  lam = dt/dx
+  tfinal = 2.0
+  t = 0.0
+  do while(t < tfinal)
 
-!    if(t+dt > tfinal) then
-!      dt = tfinal - t
-!      lam = dt/dx
-!    end if
-!      do rk=1,3
-!        call DMGlobalToLocalBegin(da,ug,INSERT_VALUES,ul,ierr)
-!        call DMGlobalToLocalEnd(da,ug,INSERT_VALUES,ul,ierr)
+    if(t+dt > tfinal) then
+      dt = tfinal - t
+      lam = dt/dx
+    end if
+      do rk=1,3
+        call DMGlobalToLocalBegin(da,ug,INSERT_VALUES,ul,ierr)
+        call DMGlobalToLocalEnd(da,ug,INSERT_VALUES,ul,ierr)
 
-!        call VecGetArrayRead(da,ul,u,ierr)
-!        call VecGetArray(da,ug,unew,ierr)
+        call VecGetArrayReadF90(ul,u,ierr)
+        call VecGetArrayF90(ug,unew,ierr)
 
-!        if (rk == 0) then
-!          do i=ibeg,ibeg+nloc-1
-!            uold(i-ibeg) = u(i)
-!          end do
-!        end if
+        if (rk == 0) then
+          do i=ibeg,ibeg+nloc-1
+            uold(i-ibeg) = u(i)
+          end do
+        end if
 
-!        do i=0,nloc-1
-!          res(i) = 0.0
-!        end do
+        do i=0,nloc-1
+          res(i) = 0.0
+        end do
 
-!        do i=0,nloc
-!          j = il+sw+i
-!          jm1 = j-1
-!          jm2 = j-2
-!          jm3 = j-3
-!          jp1 = j+1
+        do i=0,nloc
+          j = il+sw+i
+          jm1 = j-1
+          jm2 = j-2
+          jm3 = j-3
+          jp1 = j+1
    
-!          uleft = weno5(u(jm3),u(jm2),u(jm1),u(j),u(jp1))
-!          flux = uleft
+          uleft = weno5(u(jm3),u(jm2),u(jm1),u(j),u(jp1))
+          flux = uleft
 
-!          if (i==0) then
-!            res(i) = res(i)-flux
-!          elseif(i==nloc) then
-!            res(i-1) = res(i-1)+flux
-!          else
-!            res(i) = res(i)-flux
-!            res(i-1) = res(i-1)+flux
-!          end if  
+          if (i==0) then
+            res(i) = res(i)-flux
+          elseif(i==nloc) then
+            res(i-1) = res(i-1)+flux
+          else
+            res(i) = res(i)-flux
+            res(i-1) = res(i-1)+flux
+          end if  
 
-!        end do 
+        end do 
 
-!        do i=ibeg,ibeg+nloc-1
-!          unew(i) = ark(rk)*uold(i-ibeg) + (1-ark(rk))*(u(i)-&
-!          & lam * res(i-ibeg)) 
-!        end do
+        do i=ibeg,ibeg+nloc-1
+          unew(i) = ark(rk)*uold(i-ibeg) + (1-ark(rk))*(u(i)-&
+          & lam * res(i-ibeg)) 
+        end do
 
   
-!        call VecRestoreArrayRead(da,ul,u,ierr)
-!        call VecRestoreArray(da,ug,unew,ierr)            
+        call VecRestoreArrayReadF90(ul,u,ierr)
+        call VecRestoreArrayF90(ug,unew,ierr)            
 
 
-!      end do
+      end do
 
-!      t = t+dt
-!  end do
+      t = t+dt
+  end do
+  print*,'done',t
 
   call DMDestroy(da,ierr)
-  call VecDestroy(ug,ierr)
   call PetscFinalize(ierr)
 
 end program main
@@ -197,4 +198,33 @@ real function weno5(um2,um1,u0,up1,up2)
 
 end function weno5
 
+subroutine savesol(nx,dx,ug)
+  implicit none
 
+#include <petsc/finclude/petscsys.h>
+#include <petsc/finclude/petscvec.h>
+#include <petsc/finclude/petscdmda.h>
+#include <petsc/finclude/petscvec.h90>
+#include <petsc/finclude/petscdmda.h90>
+#include <petsc/finclude/petscdm.h>
+
+
+  PetscErrorCode ierr
+  Vec  ug
+  VecScatter ctx
+  Vec uall
+  integer::nx,i,rank,coun
+  real::dx
+  MPI_Comm comm
+    
+  call MPI_Comm_rank(comm,rank,ierr)
+
+  call VecScatterCreateToZero(ug,ctx,uall,ierr)
+  
+  call VecScatterBegin(ctx,ug,uall,INSERT_VALUES,SCATTER_FORWARD,ierr)
+  call VecScatterEnd(ctx,ug,uall,INSERT_VALUES,SCATTER_FORWARD,ierr)
+  
+  call VecScatterDestroy(ctx,ierr)
+  
+  
+end subroutine savesol
